@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect } from 'react';
 import { HashRouter as Router, Routes, Route } from 'react-router-dom';
 import Layout from './components/Layout';
@@ -7,6 +8,7 @@ import CustomerList from './pages/CustomerList';
 import AddCustomer from './pages/AddCustomer';
 import AddDebt from './pages/AddDebt';
 import CustomerDetail from './pages/CustomerDetail';
+import Login from './pages/Login';
 import { Customer, Debt } from './types';
 import { subscribeToCustomers, syncCustomerToCloud, deleteCustomerFromCloud } from './services/storageService';
 import { Loader2 } from 'lucide-react';
@@ -14,6 +16,15 @@ import { Loader2 } from 'lucide-react';
 const App: React.FC = () => {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+  // التحقق من حالة تسجيل الدخول
+  useEffect(() => {
+    const authStatus = localStorage.getItem('isAuthenticated');
+    if (authStatus === 'true') {
+      setIsAuthenticated(true);
+    }
+  }, []);
 
   useEffect(() => {
     // الاشتراك في التغييرات السحابية
@@ -64,41 +75,46 @@ const App: React.FC = () => {
     );
   }
 
+  // إذا لم يكن مسجلاً للدخول، اعرض صفحة الدخول
+  if (!isAuthenticated) {
+    return <Login onLogin={() => setIsAuthenticated(true)} />;
+  }
+
   return (
     <Router>
       <Layout>
         <Routes>
           <Route path="/" element={<Dashboard customers={customers} />} />
-          <Route 
-            path="/customers" 
+          <Route
+            path="/customers"
             element={
-              <CustomerList 
-                customers={customers} 
-                onDelete={handleDeleteCustomer} 
-                onToggleArchive={handleToggleArchive} 
-              />
-            } 
-          />
-          <Route path="/add-customer" element={<AddCustomer onAdd={handleAddCustomer} />} />
-          <Route 
-            path="/customer/:id/add-debt" 
-            element={
-              <AddDebt 
-                customers={customers} 
-                onAddDebt={handleAddDebtToCustomer} 
-              />
-            } 
-          />
-          <Route 
-            path="/customer/:id" 
-            element={
-              <CustomerDetail 
-                customers={customers} 
-                onUpdate={handleUpdateCustomer} 
+              <CustomerList
+                customers={customers}
                 onDelete={handleDeleteCustomer}
                 onToggleArchive={handleToggleArchive}
               />
-            } 
+            }
+          />
+          <Route path="/add-customer" element={<AddCustomer onAdd={handleAddCustomer} />} />
+          <Route
+            path="/customer/:id/add-debt"
+            element={
+              <AddDebt
+                customers={customers}
+                onAddDebt={handleAddDebtToCustomer}
+              />
+            }
+          />
+          <Route
+            path="/customer/:id"
+            element={
+              <CustomerDetail
+                customers={customers}
+                onUpdate={handleUpdateCustomer}
+                onDelete={handleDeleteCustomer}
+                onToggleArchive={handleToggleArchive}
+              />
+            }
           />
         </Routes>
       </Layout>

@@ -1,10 +1,15 @@
-
 import React from 'react';
-import { LayoutDashboard, Users, UserPlus, Settings } from 'lucide-react';
-import { Link, useLocation } from 'react-router-dom';
+import { LayoutDashboard, Users, UserPlus, LogOut } from 'lucide-react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const location = useLocation();
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    localStorage.removeItem('isAuthenticated');
+    window.location.reload(); // إعادة تحميل الصفحة لإظهار شاشة الدخول
+  };
 
   const navItems = [
     { path: '/', label: 'لوحة التحكم', icon: LayoutDashboard },
@@ -28,15 +33,22 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
               <Link
                 key={item.path}
                 to={item.path}
-                className={`flex items-center gap-3 p-3 rounded-lg transition-colors ${
-                  isActive ? 'bg-indigo-700 text-white' : 'text-indigo-200 hover:bg-indigo-800'
-                }`}
+                className={`flex items-center gap-3 p-3 rounded-lg transition-colors ${isActive ? 'bg-indigo-700 text-white' : 'text-indigo-200 hover:bg-indigo-800'
+                  }`}
               >
                 <Icon size={20} />
                 <span>{item.label}</span>
               </Link>
             );
           })}
+
+          <button
+            onClick={handleLogout}
+            className="flex w-full items-center gap-3 p-3 rounded-lg text-red-300 hover:bg-red-900/30 hover:text-red-100 transition-colors mt-auto"
+          >
+            <LogOut size={20} />
+            <span>تسجيل خروج</span>
+          </button>
         </nav>
         <div className="p-4 border-t border-indigo-800">
           <div className="text-xs text-indigo-400">نظام إدارة المحل v1.0</div>
@@ -44,14 +56,17 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       </aside>
 
       {/* Mobile Nav */}
-      <div className="md:hidden bg-indigo-900 text-white p-4 flex justify-between items-center sticky top-0 z-50">
-        <span className="font-bold">نظام المديونيات</span>
-        <div className="flex gap-4">
+      <div className="md:hidden bg-indigo-900 text-white p-4 flex justify-between items-center sticky top-0 z-50 shadow-lg">
+        <span className="font-bold text-lg">نظام المديونيات</span>
+        <div className="flex gap-4 items-center">
           {navItems.map((item) => (
-            <Link key={item.path} to={item.path} className="p-1">
-              <item.icon size={24} />
+            <Link key={item.path} to={item.path} className={`p-2 rounded-lg ${location.pathname === item.path ? 'bg-indigo-700' : ''}`}>
+              <item.icon size={22} />
             </Link>
           ))}
+          <button onClick={handleLogout} className="p-2 text-red-300">
+            <LogOut size={22} />
+          </button>
         </div>
       </div>
 
