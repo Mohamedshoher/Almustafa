@@ -12,7 +12,67 @@ import {
 import { db } from "./firebase";
 
 const GOLD_CACHE_KEY = 'gold_price_cache';
-const LOCAL_IMAGES_PREFIX = 'local_debt_images_';
+const DB_NAME = 'AlmustafaDB';
+const STORE_NAME = 'debt_images';
+
+// إعداد IndexedDB
+const openDB = (): Promise<IDBDatabase> => {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(DB_NAME, 1);
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains(STORE_NAME)) {
+        db.createObjectStore(STORE_NAME);
+      }
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+};
+
+// دالة لحفظ الصور في IndexedDB
+const saveImagesLocally = async (debtId: string, images: DebtImage[]) => {
+  if (!images || images.length === 0) return;
+  try {
+    const db = await openDB();
+    const tx = db.transaction(STORE_NAME, 'readwrite');
+    const store = tx.objectStore(STORE_NAME);
+    store.put(images, debtId);
+  } catch (err) {
+    console.error("IndexedDB Save Error:", err);
+  }
+};
+
+// دالة لجلب الصور من IndexedDB
+const getLocalImages = async (debtId: string): Promise<DebtImage[]> => {
+  try {
+    const db = await openDB();
+    return new Promise((resolve) => {
+      const tx = db.transaction(STORE_NAME, 'readonly');
+      const store = tx.objectStore(STORE_NAME);
+      const request = store.get(debtId);
+      request.onsuccess = () => resolve(request.result || []);
+      request.onerror = () => resolve([]);
+    });
+  } catch (err) {
+    console.error("IndexedDB Get Error:", err);
+    return [];
+  }
+};
+
+// دالة لحذف الصور من IndexedDB
+const deleteLocalImages = async (debtId: string) => {
+  try {
+    const db = await openDB();
+    const tx = db.transaction(STORE_NAME, 'readwrite');
+    const store = tx.objectStore(STORE_NAME);
+    store.delete(debtId);
+  } catch (err) {
+    console.error("IndexedDB Delete Error:", err);
+  }
+};
+
+// ... (cleanUndefined remains same)
 
 // دالة لتنظيف البيانات من القيم undefined (Firebase لا يقبل undefined)
 const cleanUndefined = (obj: any): any => {
@@ -34,36 +94,21 @@ const cleanUndefined = (obj: any): any => {
   return obj;
 };
 
-// دالة لحفظ الصور محلياً فقط
-const saveImagesLocally = (debtId: string, images: DebtImage[]) => {
-  if (images && images.length > 0) {
-    localStorage.setItem(LOCAL_IMAGES_PREFIX + debtId, JSON.stringify(images));
-  }
-};
-
-// دالة لجلب الصور من التخزين المحلي
-const getLocalImages = (debtId: string): DebtImage[] => {
-  const data = localStorage.getItem(LOCAL_IMAGES_PREFIX + debtId);
-  return data ? JSON.parse(data) : [];
-};
-
-// دالة لحذف الصور المحلية
-const deleteLocalImages = (debtId: string) => {
-  localStorage.removeItem(LOCAL_IMAGES_PREFIX + debtId);
-};
-
 // مزامنة العملاء مع Firebase (بدون صور)
 export const syncCustomerToCloud = async (customer: Customer) => {
   try {
-    // 1. استخراج الصور وحفظها محلياً، ثم إفراغها من الكائن المتوجه للسحابة
-    const cleanedDebts = customer.debts.map(debt => {
-      saveImagesLocally(debt.id, debt.images);
-      return { ...debt, images: [] }; // إرسال مصفوفة فارغة للسحابة
-    });
+    // 1. استخراج الصور وحفظها في IndexedDB
+    for (const debt of customer.debts) {
+      if (debt.images && debt.images.length > 0) {
+        await saveImagesLocally(debt.id, debt.images);
+      }
+    }
 
+    // 2. إفراغ الصور من الكائن المتوجه للسحابة
+    const cleanedDebts = customer.debts.map(debt => ({ ...debt, images: [] }));
     const cloudData = { ...customer, debts: cleanedDebts };
 
-    // 2. تنظيف البيانات من القيم undefined قبل الإرسال
+    // 3. تنظيف البيانات من القيم undefined قبل الإرسال
     const cleanedData = cleanUndefined(cloudData);
 
     await setDoc(doc(db, "customers", customer.id), cleanedData);
@@ -75,8 +120,10 @@ export const syncCustomerToCloud = async (customer: Customer) => {
 export const deleteCustomerFromCloud = async (customerId: string, debts: Debt[]) => {
   try {
     await deleteDoc(doc(db, "customers", customerId));
-    // حذف الصور المحلية المرتبطة بمديونيات هذا العميل
-    debts.forEach(d => deleteLocalImages(d.id));
+    // حذف الصور من IndexedDB
+    for (const d of debts) {
+      await deleteLocalImages(d.id);
+    }
   } catch (error) {
     console.error("Error deleting from cloud:", error);
   }
@@ -86,16 +133,16 @@ export const deleteCustomerFromCloud = async (customerId: string, debts: Debt[])
 export const subscribeToCustomers = (callback: (customers: Customer[]) => void) => {
   const q = query(collection(db, "customers"), orderBy("createdAt", "desc"));
 
-  return onSnapshot(q, (snapshot) => {
-    const customers = snapshot.docs.map(doc => {
+  return onSnapshot(q, async (snapshot) => {
+    const customers = await Promise.all(snapshot.docs.map(async (doc) => {
       const data = doc.data() as Customer;
-      // دمج الصور المخزنة محلياً في كل مديونية
-      const debtsWithLocalImages = data.debts.map(debt => ({
+      // دمج الصور المخزنة في IndexedDB في كل مديونية
+      const debtsWithLocalImages = await Promise.all(data.debts.map(async (debt) => ({
         ...debt,
-        images: getLocalImages(debt.id)
-      }));
+        images: await getLocalImages(debt.id)
+      })));
       return { ...data, debts: debtsWithLocalImages };
-    });
+    }));
     callback(customers);
   });
 };
