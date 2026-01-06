@@ -72,13 +72,13 @@
   <div id="root"></div>
   <script type="module" src="/index.tsx"></script>
 
-  <!-- Register Service Worker -->
+  <!-- Clear Service Worker to fix MIME type errors -->
   <script>
     if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js')
-          .then(reg => console.log('Service Worker registered'))
-          .catch(err => console.log('Service Worker registration failed:', err));
+      navigator.serviceWorker.getRegistrations().then(function (registrations) {
+        for (let registration of registrations) {
+          registration.unregister();
+        }
       });
     }
   </script>
