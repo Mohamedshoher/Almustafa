@@ -5,19 +5,20 @@ export const calculateInstallments = (
   amount: number,
   months: number,
   type: DebtType,
-  goldGrams?: number
+  goldGrams?: number,
+  startDateStr?: string
 ): Installment[] => {
   const installments: Installment[] = [];
-  const monthlyAmount = type === DebtType.GOLD && goldGrams 
-    ? goldGrams / months 
+  const monthlyAmount = type === DebtType.GOLD && goldGrams
+    ? goldGrams / months
     : amount / months;
 
-  const today = new Date();
+  const baseDate = startDateStr ? new Date(startDateStr) : new Date();
 
   for (let i = 1; i <= months; i++) {
-    const dueDate = new Date(today);
-    dueDate.setMonth(today.getMonth() + i);
-    
+    const dueDate = new Date(baseDate);
+    dueDate.setMonth(baseDate.getMonth() + i);
+
     installments.push({
       id: Math.random().toString(36).substr(2, 9),
       dueDate: dueDate.toISOString().split('T')[0],
@@ -50,13 +51,13 @@ export const applyPaymentToDebt = (debt: Debt, paymentAmountEGP: number): Debt =
   }
 
   let remainingValue = valueToDeduct;
-  
+
   const newInstallments = debt.installments.map(inst => {
     if (remainingValue <= 0 || inst.paid) return inst;
 
     const neededToComplete = inst.amount - inst.paidAmount;
     const paymentForThisInst = Math.min(remainingValue, neededToComplete);
-    
+
     const newPaidAmount = inst.paidAmount + paymentForThisInst;
     remainingValue -= paymentForThisInst;
 
@@ -76,8 +77,8 @@ export const applyPaymentToDebt = (debt: Debt, paymentAmountEGP: number): Debt =
     note: `سداد مبلغ نقدي قيمته ${paymentAmountEGP} ج.م${noteSuffix}`
   };
 
-  return { 
-    ...debt, 
+  return {
+    ...debt,
     installments: newInstallments,
     history: [...(debt.history || []), newHistoryRecord]
   };
@@ -92,9 +93,9 @@ export const adjustDebtAmount = (debt: Debt, additionalEGP: number, reason: stri
   }
 
   const unpaidInstallments = debt.installments.filter(inst => !inst.paid);
-  
+
   let newInstallments: Installment[];
-  
+
   if (unpaidInstallments.length > 0) {
     const incrementPerMonth = additionalValue / unpaidInstallments.length;
     newInstallments = debt.installments.map(inst => {
@@ -107,7 +108,7 @@ export const adjustDebtAmount = (debt: Debt, additionalEGP: number, reason: stri
   } else {
     const lastDate = new Date(debt.installments[debt.installments.length - 1].dueDate);
     lastDate.setMonth(lastDate.getMonth() + 1);
-    
+
     newInstallments = [...debt.installments, {
       id: Math.random().toString(36).substr(2, 9),
       dueDate: lastDate.toISOString().split('T')[0],

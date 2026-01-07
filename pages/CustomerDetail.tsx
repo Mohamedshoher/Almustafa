@@ -3,10 +3,10 @@ import React, { useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { Customer, DebtType, PaymentRecord, Debt, Installment, DebtImage } from '../types';
 import { formatCurrency, formatGrams, getRemainingBalance, getPaidAmount, applyPaymentToDebt, adjustDebtAmount } from '../utils/calculations';
-import { Phone, MessageSquare, CheckCircle, Calendar, Package, ArrowRight, Fullscreen, PieChart, Wallet, CreditCard, X, Clock, History, PlusCircle, AlertTriangle, Archive, Trash2, RotateCcw, Coins, BellRing, FilePlus, Camera, Edit2, Check } from 'lucide-react';
+import { Phone, MessageSquare, CheckCircle, Calendar, Package, ArrowRight, Fullscreen, PieChart, Wallet, CreditCard, X, Clock, History, PlusCircle, AlertTriangle, Archive, Trash2, RotateCcw, Coins, BellRing, FilePlus, Camera, Edit2, Check, ChevronRight, ChevronLeft, RefreshCw, Image as ImageIcon } from 'lucide-react';
 
-const CustomerDetail: React.FC<{ 
-  customers: Customer[], 
+const CustomerDetail: React.FC<{
+  customers: Customer[],
   onUpdate: (id: string, updatedCustomer: Customer) => void,
   onDelete: (id: string) => void,
   onToggleArchive: (id: string) => void
@@ -14,8 +14,8 @@ const CustomerDetail: React.FC<{
   const { id } = useParams();
   const navigate = useNavigate();
   const customer = customers.find(c => c.id === id);
-  const [selectedImage, setSelectedImage] = useState<DebtImage | null>(null);
-  
+  const [viewerImages, setViewerImages] = useState<{ images: DebtImage[], index: number } | null>(null);
+
   const [paymentModalDebtId, setPaymentModalDebtId] = useState<string | null>(null);
   const [paymentInput, setPaymentInput] = useState<string>('');
   const [adjustModalDebtId, setAdjustModalDebtId] = useState<string | null>(null);
@@ -35,7 +35,7 @@ const CustomerDetail: React.FC<{
   };
 
   const handleUpdateLabel = (debtId: string) => {
-    const updatedDebts = customer.debts.map(d => 
+    const updatedDebts = customer.debts.map(d =>
       d.id === debtId ? { ...d, label: tempLabel || d.label } : d
     );
     onUpdate(customer.id, { ...customer, debts: updatedDebts });
@@ -54,14 +54,14 @@ const CustomerDetail: React.FC<{
     const debt = customer.debts.find(d => d.id === debtId);
     if (!debt) return;
 
-    if (debt.images.length + files.length > 15) {
-      alert("الحد الأقصى للمرفقات هو 15 صورة");
+    if (debt.images.length + files.length > 20) {
+      alert("الحد الأقصى للمرفقات هو 20 صورة");
       return;
     }
 
     const now = new Date().toISOString();
     const fileArray = Array.from(files);
-    
+
     fileArray.forEach(file => {
       const reader = new FileReader();
       reader.onloadend = () => {
@@ -71,13 +71,64 @@ const CustomerDetail: React.FC<{
           addedAt: now
         };
 
-        const updatedDebts = customer.debts.map(d => 
+        const updatedDebts = customer.debts.map(d =>
           d.id === debtId ? { ...d, images: [...d.images, newImage] } : d
         );
         onUpdate(customer.id, { ...customer, debts: updatedDebts });
       };
       reader.readAsDataURL(file);
     });
+  };
+
+  const handleDeleteImage = (debtId: string, imageId: string) => {
+    if (!window.confirm('هل أنت متأكد من حذف هذه الصورة المرفقة؟')) return;
+
+    const updatedDebts = customer.debts.map(d => {
+      if (d.id === debtId) {
+        return { ...d, images: d.images.filter(img => img.id !== imageId) };
+      }
+      return d;
+    });
+
+    onUpdate(customer.id, { ...customer, debts: updatedDebts });
+
+    if (viewerImages) {
+      const remainingImages = viewerImages.images.filter(img => img.id !== imageId);
+      if (remainingImages.length === 0) {
+        setViewerImages(null);
+      } else {
+        const newIndex = Math.min(viewerImages.index, remainingImages.length - 1);
+        setViewerImages({ images: remainingImages, index: newIndex });
+      }
+    }
+  };
+
+  const handleReplaceImage = (debtId: string, imageId: string, file: File | null) => {
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const now = new Date().toISOString();
+      const updatedDebts = customer.debts.map(d => {
+        if (d.id === debtId) {
+          const updatedImages = d.images.map(img =>
+            img.id === imageId ? { ...img, url: reader.result as string, addedAt: now } : img
+          );
+          return { ...d, images: updatedImages };
+        }
+        return d;
+      });
+
+      onUpdate(customer.id, { ...customer, debts: updatedDebts });
+
+      if (viewerImages) {
+        const updatedImagesForViewer = viewerImages.images.map(img =>
+          img.id === imageId ? { ...img, url: reader.result as string, addedAt: now } : img
+        );
+        setViewerImages({ ...viewerImages, images: updatedImagesForViewer });
+      }
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleCustomPayment = (e: React.FormEvent) => {
@@ -162,21 +213,36 @@ const CustomerDetail: React.FC<{
             <p className="text-slate-500 font-medium font-mono">{customer.phone}</p>
           </div>
         </div>
-        
-        <div className="flex flex-wrap items-center gap-3 bg-white p-2 rounded-2xl border shadow-sm self-start md:self-center">
-          <Link 
+
+        <div className="flex items-center gap-1.5 md:gap-3 bg-white p-1.5 md:p-2 rounded-2xl border shadow-sm self-center md:self-center overflow-x-auto no-scrollbar">
+          <Link
             to={`/customer/${customer.id}/add-debt`}
-            className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-black hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100"
+            className="flex items-center gap-2 px-3 md:px-5 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-black hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 whitespace-nowrap"
+            title="إضافة فاتورة جديدة"
           >
             <FilePlus size={18} />
-            <span>إضافة فاتورة جديدة</span>
+            <span className="hidden md:inline">إضافة فاتورة جديدة</span>
           </Link>
-          <div className="w-px h-8 bg-slate-100 mx-1 hidden sm:block"></div>
-          <button onClick={() => { onToggleArchive(customer.id); if (!customer.isArchived) navigate('/customers'); }} className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all ${customer.isArchived ? 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100' : 'bg-amber-50 text-amber-700 hover:bg-amber-100'}`}>{customer.isArchived ? <RotateCcw size={18} /> : <Archive size={18} />}{customer.isArchived ? 'استعادة' : 'أرشفة'}</button>
-          <button onClick={() => { onDelete(customer.id); navigate('/customers'); }} className="flex items-center gap-2 px-4 py-2 bg-red-50 text-red-700 hover:bg-red-100 rounded-xl text-sm font-bold transition-all"><Trash2 size={18} />حذف العميل</button>
-          <div className="w-px h-8 bg-slate-100 mx-1"></div>
-          <a href={`tel:${customer.phone}`} className="w-10 h-10 bg-emerald-50 text-emerald-700 rounded-xl flex items-center justify-center hover:bg-emerald-100 transition-colors"><Phone size={20} /></a>
-          <a href={`https://wa.me/${getWhatsAppNumber(customer.phone)}`} target="_blank" rel="noreferrer" className="w-10 h-10 bg-green-50 text-green-700 rounded-xl flex items-center justify-center hover:bg-green-100 transition-colors"><MessageSquare size={20} /></a>
+          <div className="w-px h-8 bg-slate-100 mx-0.5 hidden sm:block"></div>
+          <button
+            onClick={() => { onToggleArchive(customer.id); if (!customer.isArchived) navigate('/customers'); }}
+            className={`flex items-center gap-2 px-3 md:px-4 py-2.5 rounded-xl text-sm font-bold transition-all whitespace-nowrap ${customer.isArchived ? 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100' : 'bg-amber-50 text-amber-700 hover:bg-amber-100'}`}
+            title={customer.isArchived ? 'استعادة' : 'أرشفة'}
+          >
+            {customer.isArchived ? <RotateCcw size={18} /> : <Archive size={18} />}
+            <span className="hidden md:inline">{customer.isArchived ? 'استعادة' : 'أرشفة'}</span>
+          </button>
+          <button
+            onClick={() => { onDelete(customer.id); navigate('/customers'); }}
+            className="flex items-center gap-2 px-3 md:px-4 py-2.5 bg-red-50 text-red-700 hover:bg-red-100 rounded-xl text-sm font-bold transition-all whitespace-nowrap"
+            title="حذف العميل"
+          >
+            <Trash2 size={18} />
+            <span className="hidden md:inline">حذف العميل</span>
+          </button>
+          <div className="w-px h-8 bg-slate-100 mx-0.5"></div>
+          <a href={`tel:${customer.phone}`} className="w-10 h-10 flex-shrink-0 bg-emerald-50 text-emerald-700 rounded-xl flex items-center justify-center hover:bg-emerald-100 transition-colors" title="اتصال هاتف"><Phone size={20} /></a>
+          <a href={`https://wa.me/${getWhatsAppNumber(customer.phone)}`} target="_blank" rel="noreferrer" className="w-10 h-10 flex-shrink-0 bg-green-50 text-green-700 rounded-xl flex items-center justify-center hover:bg-green-100 transition-colors" title="واتساب"><MessageSquare size={20} /></a>
         </div>
       </header>
 
@@ -194,66 +260,85 @@ const CustomerDetail: React.FC<{
         const paid = getPaidAmount(debt);
         const totalPaidCount = debt.installments.filter(i => i.paid).length;
         const percentage = Math.round((paid / (paid + remaining || 1)) * 100);
-        
+
         return (
           <div key={debt.id} className="space-y-6">
             <div className="bg-white rounded-3xl border border-slate-200 shadow-lg overflow-hidden transition-all hover:shadow-xl">
-              <div className="p-8 bg-gradient-to-r from-slate-50 to-white border-b flex flex-wrap justify-between items-center gap-6">
-                <div className="flex items-center gap-4">
-                  <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shadow-inner ${debt.type === DebtType.GOLD ? 'bg-amber-100 text-amber-600' : 'bg-indigo-100 text-indigo-600'}`}>{debt.type === DebtType.GOLD ? <Coins size={28} /> : <Wallet size={28} />}</div>
-                  <div className="space-y-1">
+              <div className="p-5 md:p-8 bg-gradient-to-r from-slate-50 to-white border-b flex flex-col md:flex-row md:items-center justify-between gap-6">
+                <div className="flex items-center gap-4 w-full md:w-auto">
+                  <div className={`w-12 h-12 md:w-14 md:h-14 rounded-2xl flex items-center justify-center shadow-inner flex-shrink-0 ${debt.type === DebtType.GOLD ? 'bg-amber-100 text-amber-600' : 'bg-indigo-100 text-indigo-600'}`}>
+                    {debt.type === DebtType.GOLD ? <Coins size={24} /> : <Wallet size={24} />}
+                  </div>
+                  <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 group">
                       {editingLabelDebtId === debt.id ? (
                         <div className="flex items-center gap-2 animate-in fade-in slide-in-from-right-1">
-                          <input 
+                          <input
                             autoFocus
-                            className="text-2xl font-black text-indigo-700 border-b-2 border-indigo-500 outline-none bg-transparent py-0 px-1"
+                            className="text-xl md:text-2xl font-black text-indigo-700 border-b-2 border-indigo-500 outline-none bg-transparent py-0 px-1 w-full"
                             value={tempLabel}
                             onChange={(e) => setTempLabel(e.target.value)}
                             onBlur={() => handleUpdateLabel(debt.id)}
                             onKeyDown={(e) => e.key === 'Enter' && handleUpdateLabel(debt.id)}
                           />
-                          <button onClick={() => handleUpdateLabel(debt.id)} className="text-emerald-500 hover:bg-emerald-50 p-1 rounded-lg"><Check size={20}/></button>
+                          <button onClick={() => handleUpdateLabel(debt.id)} className="text-emerald-500 hover:bg-emerald-50 p-1 rounded-lg"><Check size={20} /></button>
                         </div>
                       ) : (
                         <>
-                          <h2 className="text-2xl font-bold text-slate-800">{debt.label || (debt.type === DebtType.GOLD ? 'عقد ذهب' : 'عقد نقدي')}</h2>
-                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
-                            <button 
+                          <h2 className="text-xl md:text-2xl font-bold text-slate-800 truncate">{debt.label || (debt.type === DebtType.GOLD ? 'عقد ذهب' : 'عقد نقدي')}</h2>
+                          <div className="flex items-center gap-1 opacity-100 md:opacity-0 group-hover:opacity-100 transition-all">
+                            <button
                               onClick={() => { setEditingLabelDebtId(debt.id); setTempLabel(debt.label); }}
                               className="p-1.5 text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
                               title="تعديل الاسم"
                             >
-                              <Edit2 size={16} />
+                              <Edit2 size={14} />
                             </button>
-                            <button 
+                            <button
                               onClick={() => handleDeleteDebt(debt.id)}
                               className="p-1.5 text-slate-300 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
                               title="حذف الفاتورة"
                             >
-                              <Trash2 size={16} />
+                              <Trash2 size={14} />
                             </button>
                           </div>
                         </>
                       )}
                     </div>
-                    <div className="flex gap-4">
-                      <div className="text-xs text-slate-400 font-bold">#{debt.id.toUpperCase()}</div>
-                      <div className="text-xs text-slate-400 font-bold">البداية: {new Date(debt.startDate).toLocaleDateString('ar-EG')}</div>
+                    <div className="flex flex-wrap gap-x-4 gap-y-1">
+                      <div className="text-[10px] md:text-xs text-slate-400 font-bold">البداية: {new Date(debt.startDate).toLocaleDateString('ar-EG')}</div>
                       <div className={`text-[10px] font-black px-2 py-0.5 rounded border ${debt.type === DebtType.GOLD ? 'bg-amber-50 text-amber-700 border-amber-100' : 'bg-indigo-50 text-indigo-700 border-indigo-100'}`}>
                         {debt.type === DebtType.GOLD ? 'ذهب ع24' : 'نقدي'}
                       </div>
                     </div>
                   </div>
                 </div>
-                <div className="flex items-center gap-6">
-                  <div className="text-right border-r-2 pr-6 border-slate-200">
-                    <div className="text-xs text-emerald-600 font-extrabold mb-1">المتبقي</div>
-                    <div className="text-3xl font-black text-indigo-700">{debt.type === DebtType.GOLD ? formatGrams(remaining) : formatCurrency(remaining)}</div>
+
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 md:gap-8 w-full md:w-auto border-t md:border-t-0 pt-4 md:pt-0">
+                  <div className="flex flex-wrap items-center justify-between md:justify-end gap-x-6 gap-y-2 md:border-r-2 md:pr-6 border-slate-200">
+                    <div className="flex items-center gap-2 md:block md:text-right">
+                      <div className="text-[10px] md:text-xs text-emerald-600 font-extrabold mb-0.5 md:mb-1">المتبقي:</div>
+                      <div className="text-xl md:text-3xl font-black text-indigo-700 leading-tight">
+                        {debt.type === DebtType.GOLD ? formatGrams(remaining) : formatCurrency(remaining)}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 md:block md:text-right opacity-60">
+                      <div className="text-[10px] md:text-xs text-slate-500 font-extrabold mb-0.5 md:mb-1">إجمالي الفاتورة:</div>
+                      <div className="text-sm md:text-lg font-bold text-slate-700 leading-tight">
+                        {debt.type === DebtType.GOLD ? formatGrams(debt.goldGrams!) : formatCurrency(debt.amountInEGP)}
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex flex-col gap-2">
-                    <button onClick={() => setPaymentModalDebtId(debt.id)} className="bg-emerald-600 text-white px-6 py-2.5 rounded-xl font-bold flex items-center gap-2 hover:bg-emerald-700 transition-all text-sm shadow-lg shadow-emerald-100"><CreditCard size={18} />سداد مبلغ</button>
-                    <button onClick={() => setAdjustModalDebtId(debt.id)} className="bg-amber-500 text-white px-6 py-2.5 rounded-xl font-bold flex items-center gap-2 hover:bg-amber-600 transition-all text-sm shadow-lg shadow-amber-100"><PlusCircle size={18} />زيادة مديونية</button>
+
+                  <div className="flex flex-row md:flex-col gap-2 w-full md:w-auto">
+                    <button onClick={() => setPaymentModalDebtId(debt.id)} className="flex-1 md:flex-none bg-emerald-600 text-white px-3 md:px-6 py-3 md:py-2.5 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-emerald-700 transition-all text-xs md:text-sm shadow-lg shadow-emerald-100">
+                      <CreditCard size={16} />
+                      <span className="whitespace-nowrap">سداد مبلغ</span>
+                    </button>
+                    <button onClick={() => setAdjustModalDebtId(debt.id)} className="flex-1 md:flex-none bg-amber-500 text-white px-3 md:px-6 py-3 md:py-2.5 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-amber-600 transition-all text-xs md:text-sm shadow-lg shadow-amber-100">
+                      <PlusCircle size={16} />
+                      <span className="whitespace-nowrap">زيادة مديونية</span>
+                    </button>
                   </div>
                 </div>
               </div>
@@ -274,25 +359,37 @@ const CustomerDetail: React.FC<{
                       </div>
                     </div>
                   </div>
-                  
+
                   <div className="mt-6">
                     <div className="flex items-center justify-between mb-3">
                       <h4 className="text-sm font-bold text-slate-700 flex items-center gap-2"><Package size={16} /> المرفقات</h4>
-                      <label className="cursor-pointer bg-slate-100 text-slate-600 p-1.5 rounded-lg hover:bg-indigo-600 hover:text-white transition-all">
-                        <Camera size={18} />
-                        <input 
-                          type="file" 
-                          multiple 
-                          accept="image/*" 
-                          className="hidden" 
-                          onChange={(e) => handleAddImages(debt.id, e.target.files)} 
-                        />
-                      </label>
+                      <div className="flex items-center gap-1">
+                        <label className="cursor-pointer bg-slate-100 text-slate-600 p-1.5 rounded-lg hover:bg-indigo-600 hover:text-white transition-all" title="إضافة من المعرض">
+                          <ImageIcon size={18} />
+                          <input
+                            type="file"
+                            multiple
+                            accept="image/*"
+                            className="hidden"
+                            onChange={(e) => handleAddImages(debt.id, e.target.files)}
+                          />
+                        </label>
+                        <label className="cursor-pointer bg-slate-100 text-slate-600 p-1.5 rounded-lg hover:bg-indigo-600 hover:text-white transition-all" title="تصوير بالكاميرا">
+                          <Camera size={18} />
+                          <input
+                            type="file"
+                            accept="image/*"
+                            capture="environment"
+                            className="hidden"
+                            onChange={(e) => handleAddImages(debt.id, e.target.files)}
+                          />
+                        </label>
+                      </div>
                     </div>
                     {debt.images.length > 0 ? (
                       <div className="flex flex-wrap gap-3">
-                        {debt.images.map((img) => (
-                          <div key={img.id} className="relative group cursor-pointer" onClick={() => setSelectedImage(img)}>
+                        {debt.images.map((img, idx) => (
+                          <div key={img.id} className="relative group cursor-pointer" onClick={() => setViewerImages({ images: debt.images, index: idx })}>
                             <img src={img.url} className="w-16 h-16 rounded-xl border-2 border-white shadow-sm object-cover hover:scale-110 transition-transform" />
                             <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity rounded-xl flex items-center justify-center text-white"><Fullscreen size={16} /></div>
                           </div>
@@ -318,6 +415,9 @@ const CustomerDetail: React.FC<{
                                 {new Date(inst.dueDate).toLocaleDateString('ar-EG', { month: 'long', year: 'numeric' })}
                                 {inst.paid && <Clock size={14} onClick={() => setShowDateForInst(isShowingDate ? null : inst.id)} className="cursor-pointer text-emerald-400 hover:text-emerald-600" />}
                               </div>
+                              <div className="text-[10px] text-slate-400 font-bold mb-1">
+                                {new Date(inst.dueDate).toLocaleDateString('ar-EG')}
+                              </div>
                               <div className={`text-[11px] font-bold ${isOverdue ? 'text-red-500' : 'text-slate-400'}`}>
                                 {isShowingDate && inst.paymentDate ? `دُفِع في: ${new Date(inst.paymentDate).toLocaleDateString('ar-EG')}` : `القسط: ${debt.type === DebtType.GOLD ? inst.amount.toFixed(2) + ' جرام' : formatCurrency(inst.amount)}`}
                               </div>
@@ -325,7 +425,7 @@ const CustomerDetail: React.FC<{
                           </div>
                           <div className="flex items-center gap-2">
                             {!inst.paid && (
-                              <button 
+                              <button
                                 onClick={() => sendInstallmentReminder(inst, debt)}
                                 className={`p-2 rounded-xl transition-all shadow-sm ${isOverdue ? 'bg-red-100 text-red-600 hover:bg-red-200' : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'}`}
                                 title="تنبيه واتساب"
@@ -342,10 +442,12 @@ const CustomerDetail: React.FC<{
                 </div>
               </div>
             </div>
-            
+
             <div className="bg-white rounded-3xl border border-slate-200 shadow-lg overflow-hidden">
               <div className="p-5 bg-slate-50 border-b flex items-center gap-2 font-black text-slate-700 text-lg"><History size={22} className="text-indigo-600" />سجل الحركات</div>
-              <div className="overflow-x-auto">
+
+              {/* Desktop Table View */}
+              <div className="hidden md:block overflow-x-auto">
                 <table className="w-full text-right">
                   <thead className="bg-slate-50 text-slate-500 border-b">
                     <tr><th className="p-5 text-sm font-black">التاريخ</th><th className="p-5 text-sm font-black text-center">النوع</th><th className="p-5 text-sm font-black">القيمة</th><th className="p-5 text-sm font-black">التفاصيل</th><th className="p-5 text-sm font-black text-center">إشعار</th></tr>
@@ -362,6 +464,38 @@ const CustomerDetail: React.FC<{
                     ))) : (<tr><td colSpan={5} className="p-16 text-center text-slate-300 font-black italic text-lg">لا توجد حركات مسجلة</td></tr>)}
                   </tbody>
                 </table>
+              </div>
+
+              {/* Mobile List View */}
+              <div className="md:hidden divide-y divide-slate-100">
+                {debt.history && debt.history.length > 0 ? ([...debt.history].reverse().map((record) => (
+                  <div key={record.id} className="p-4 flex items-center justify-between gap-4 hover:bg-slate-50/80 transition-colors">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className={`px-2 py-0.5 rounded-md font-black text-[9px] border ${record.type === 'INCREASE' ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'}`}>
+                          {record.type === 'INCREASE' ? 'زيادة' : 'سداد'}
+                        </span>
+                        <span className={`font-black text-sm ${record.type === 'INCREASE' ? 'text-amber-600' : 'text-emerald-700'}`}>
+                          {record.type === 'INCREASE' ? '+' : ''}{debt.type === DebtType.GOLD ? formatGrams(record.amount) : formatCurrency(record.amount)}
+                        </span>
+                        <span className="text-[10px] text-slate-400 font-bold mr-auto">
+                          {new Date(record.date).toLocaleDateString('ar-EG')}
+                        </span>
+                      </div>
+                      <div className="text-xs text-slate-500 font-bold truncate">
+                        {record.note || '-'}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => sendWhatsAppReceipt(record, debt)}
+                      className="w-10 h-10 flex items-center justify-center text-green-600 bg-green-50 rounded-xl active:scale-90 transition-transform"
+                    >
+                      <MessageSquare size={18} />
+                    </button>
+                  </div>
+                ))) : (
+                  <div className="p-10 text-center text-slate-300 font-bold italic">لا توجد حركات مسجلة</div>
+                )}
               </div>
             </div>
           </div>
@@ -412,17 +546,105 @@ const CustomerDetail: React.FC<{
         </div>
       )}
 
-      {selectedImage && (
-        <div className="fixed inset-0 bg-black/95 z-[200] flex items-center justify-center p-6" onClick={() => setSelectedImage(null)}>
-          <div className="relative max-w-full max-h-full">
-            <img src={selectedImage.url} className="max-w-full max-h-[80vh] rounded-2xl shadow-2xl border-4 border-white/10" />
-            <div className="mt-4 p-4 bg-white/10 backdrop-blur-md rounded-xl text-white text-center">
-              <p className="text-sm font-black flex items-center justify-center gap-2">
-                <Clock size={16} /> تاريخ الإضافة: {new Date(selectedImage.addedAt).toLocaleString('ar-EG')}
-              </p>
+      {viewerImages && (
+        <div className="fixed inset-0 bg-black/95 z-[200] flex flex-col items-center justify-center p-4">
+          <div className="absolute top-0 left-0 right-0 p-6 flex justify-between items-center z-[210] bg-gradient-to-b from-black/50 to-transparent">
+            <div className="text-white font-bold text-lg">
+              {viewerImages.index + 1} / {viewerImages.images.length}
+            </div>
+            <button onClick={() => setViewerImages(null)} className="text-white bg-white/10 p-3 rounded-full hover:bg-white/20 transition-all">
+              <X size={28} />
+            </button>
+          </div>
+
+          {/* New Actions Bar for Image */}
+          <div className="absolute bottom-36 left-0 right-0 flex justify-center gap-2 z-[210] flex-wrap px-4">
+            <label className="flex items-center gap-2 bg-white/10 hover:bg-indigo-600 text-white px-3 py-2 rounded-xl backdrop-blur-md transition-all cursor-pointer font-bold text-xs" title="استبدال من المعرض">
+              <ImageIcon size={16} />
+              <span>المعرض</span>
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const debtIdForViewer = customer.debts.find(d => d.images.some(img => img.id === viewerImages.images[viewerImages.index].id))?.id;
+                  if (debtIdForViewer) handleReplaceImage(debtIdForViewer, viewerImages.images[viewerImages.index].id, e.target.files?.[0] || null);
+                }}
+              />
+            </label>
+            <label className="flex items-center gap-2 bg-white/10 hover:bg-indigo-600 text-white px-3 py-2 rounded-xl backdrop-blur-md transition-all cursor-pointer font-bold text-xs" title="استبدال من الكاميرا">
+              <Camera size={16} />
+              <span>الكاميرا</span>
+              <input
+                type="file"
+                accept="image/*"
+                capture="environment"
+                className="hidden"
+                onChange={(e) => {
+                  const debtIdForViewer = customer.debts.find(d => d.images.some(img => img.id === viewerImages.images[viewerImages.index].id))?.id;
+                  if (debtIdForViewer) handleReplaceImage(debtIdForViewer, viewerImages.images[viewerImages.index].id, e.target.files?.[0] || null);
+                }}
+              />
+            </label>
+            <button
+              onClick={() => {
+                const debtIdForViewer = customer.debts.find(d => d.images.some(img => img.id === viewerImages.images[viewerImages.index].id))?.id;
+                if (debtIdForViewer) handleDeleteImage(debtIdForViewer, viewerImages.images[viewerImages.index].id);
+              }}
+              className="flex items-center gap-2 bg-white/10 hover:bg-red-600 text-white px-3 py-2 rounded-xl backdrop-blur-md transition-all font-bold text-xs"
+            >
+              <Trash2 size={16} />
+              <span>حذف</span>
+            </button>
+          </div>
+
+          <div className="relative w-full flex-1 flex items-center justify-center group">
+            {/* Desktop Navigation */}
+            {viewerImages.index > 0 && (
+              <button
+                onClick={(e) => { e.stopPropagation(); setViewerImages({ ...viewerImages, index: viewerImages.index - 1 }) }}
+                className="absolute right-6 z-[210] text-white bg-white/10 p-4 rounded-full hover:bg-white/20 transition-all hidden md:block"
+              >
+                <ChevronRight size={36} />
+              </button>
+            )}
+
+            <div className="w-full h-full flex items-center justify-center overflow-hidden">
+              <img
+                key={viewerImages.images[viewerImages.index].id}
+                src={viewerImages.images[viewerImages.index].url}
+                className="max-w-full max-h-[85vh] object-contain animate-in fade-in zoom-in-95 duration-300"
+                alt="Attachment"
+              />
+            </div>
+
+            {viewerImages.index < viewerImages.images.length - 1 && (
+              <button
+                onClick={(e) => { e.stopPropagation(); setViewerImages({ ...viewerImages, index: viewerImages.index + 1 }) }}
+                className="absolute left-6 z-[210] text-white bg-white/10 p-4 rounded-full hover:bg-white/20 transition-all hidden md:block"
+              >
+                <ChevronLeft size={36} />
+              </button>
+            )}
+          </div>
+
+          {/* Swipeable List for Mobile and Quick Select */}
+          <div className="p-8 w-full max-w-4xl">
+            <div className="flex justify-center gap-3 overflow-x-auto pb-4 no-scrollbar">
+              {viewerImages.images.map((img, idx) => (
+                <button
+                  key={img.id}
+                  onClick={() => setViewerImages({ ...viewerImages, index: idx })}
+                  className={`relative w-16 h-16 rounded-xl overflow-hidden flex-shrink-0 border-2 transition-all ${idx === viewerImages.index ? 'border-indigo-500 scale-110' : 'border-white/10 opacity-50'}`}
+                >
+                  <img src={img.url} className="w-full h-full object-cover" />
+                </button>
+              ))}
+            </div>
+            <div className="text-white/60 text-center text-xs font-bold mt-2">
+              تاريخ الإضافة: {new Date(viewerImages.images[viewerImages.index].addedAt).toLocaleString('ar-EG')}
             </div>
           </div>
-          <button className="absolute top-8 left-8 text-white bg-white/10 p-4 rounded-full"><X size={36} /></button>
         </div>
       )}
     </div>
