@@ -104,9 +104,10 @@ export const syncCustomerToCloud = async (customer: Customer) => {
       }
     }
 
-    // 2. إفراغ الصور من الكائن المتوجه للسحابة
+    // 2. إفراغ الصور من الكائن المتوجه للسحابة لتقليل الحجم، مع إضافة توقيت التحديث لضمان إطلاق التنبيه
+    const now = new Date().toISOString();
     const cleanedDebts = customer.debts.map(debt => ({ ...debt, images: [] }));
-    const cloudData = { ...customer, debts: cleanedDebts };
+    const cloudData = { ...customer, updatedAt: now, debts: cleanedDebts };
 
     // 3. تنظيف البيانات من القيم undefined قبل الإرسال
     const cleanedData = cleanUndefined(cloudData);

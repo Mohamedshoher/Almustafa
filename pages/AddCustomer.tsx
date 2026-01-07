@@ -1,10 +1,9 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Customer, DebtType, DebtImage } from '../types';
 import { fetchCurrentGoldPrice } from '../services/goldService';
 import { calculateInstallments, formatCurrency } from '../utils/calculations';
-import { Camera, Save, Loader2, Coins, Wallet, ExternalLink, RefreshCw, Clock, Tag, Calendar, Image as ImageIcon } from 'lucide-react';
+import { Camera, Save, Loader2, Coins, Wallet, ExternalLink, RefreshCw, Clock, Tag, Calendar, Plus } from 'lucide-react';
 
 const AddCustomer: React.FC<{ onAdd: (customer: Customer) => void }> = ({ onAdd }) => {
   const navigate = useNavigate();
@@ -52,16 +51,18 @@ const AddCustomer: React.FC<{ onAdd: (customer: Customer) => void }> = ({ onAdd 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []) as File[];
     if (files.length + images.length > 20) {
-      alert("الحد الأقصى 20 صور فقط");
+      alert("الحد الأقصى 20 صورة فقط");
       return;
     }
 
-    files.forEach(file => {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImages(prev => [...prev, reader.result as string]);
-      };
-      reader.readAsDataURL(file);
+    Promise.all(files.map(file => {
+      return new Promise<string>((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.readAsDataURL(file);
+      });
+    })).then(newImages => {
+      setImages(prev => [...prev, ...newImages]);
     });
   };
 
@@ -280,7 +281,12 @@ const AddCustomer: React.FC<{ onAdd: (customer: Customer) => void }> = ({ onAdd 
             </div>
 
             <div className="space-y-2">
-              <label className="block font-bold text-slate-700">صور المرفقات (حد أقصى 20)</label>
+              <div className="flex justify-between items-center">
+                <label className="block font-bold text-slate-700">صور المرفقات (حد أقصى 20)</label>
+                <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${images.length >= 20 ? 'bg-red-100 text-red-600' : 'bg-indigo-100 text-indigo-600'}`}>
+                  {images.length} / 20
+                </span>
+              </div>
               <div className="flex flex-wrap gap-2">
                 {images.map((img, idx) => (
                   <div key={idx} className="relative w-16 h-16 rounded-xl overflow-hidden border-2 border-indigo-100 group shadow-sm">
@@ -296,15 +302,16 @@ const AddCustomer: React.FC<{ onAdd: (customer: Customer) => void }> = ({ onAdd 
                 ))}
                 {images.length < 20 && (
                   <div className="flex gap-2">
-                    <label className="w-16 h-16 border-2 border-dashed border-slate-200 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:bg-indigo-50 hover:border-indigo-300 transition-all text-slate-400 hover:text-indigo-500 bg-slate-50" title="المعرض">
-                      <ImageIcon size={20} />
-                      <span className="text-[8px] mt-1 font-black">المعرض</span>
-                      <input type="file" accept="image/*" multiple className="hidden" onChange={handleImageChange} />
-                    </label>
-                    <label className="w-16 h-16 border-2 border-dashed border-slate-200 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:bg-indigo-50 hover:border-indigo-300 transition-all text-slate-400 hover:text-indigo-500 bg-slate-50" title="الكاميرا">
-                      <Camera size={20} />
-                      <span className="text-[8px] mt-1 font-black">الكاميرا</span>
+                    <label className="w-16 h-16 border-2 border-dashed border-indigo-200 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:bg-indigo-50 hover:border-indigo-300 transition-all text-indigo-600 bg-indigo-50/50 group">
+                      <Camera size={20} className="group-hover:scale-110 transition-transform" />
+                      <span className="text-[8px] mt-1 font-black leading-none text-center">تصوير<br />مباشر</span>
                       <input type="file" accept="image/*" capture="environment" className="hidden" onChange={handleImageChange} />
+                    </label>
+
+                    <label className="w-16 h-16 border-2 border-dashed border-slate-200 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:bg-slate-100 hover:border-slate-300 transition-all text-slate-400 bg-slate-50 group">
+                      <Plus size={20} className="group-hover:rotate-90 transition-transform" />
+                      <span className="text-[8px] mt-1 font-black leading-none text-center">من<br />المعرض</span>
+                      <input type="file" accept="image/*" multiple className="hidden" onChange={handleImageChange} />
                     </label>
                   </div>
                 )}

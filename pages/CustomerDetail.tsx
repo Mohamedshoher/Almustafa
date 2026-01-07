@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { Customer, DebtType, PaymentRecord, Debt, Installment, DebtImage } from '../types';
 import { formatCurrency, formatGrams, getRemainingBalance, getPaidAmount, applyPaymentToDebt, adjustDebtAmount } from '../utils/calculations';
-import { Phone, MessageSquare, CheckCircle, Calendar, Package, ArrowRight, Fullscreen, PieChart, Wallet, CreditCard, X, Clock, History, PlusCircle, AlertTriangle, Archive, Trash2, RotateCcw, Coins, BellRing, FilePlus, Camera, Edit2, Check, ChevronRight, ChevronLeft, RefreshCw, Image as ImageIcon } from 'lucide-react';
+import { Phone, MessageSquare, CheckCircle, Calendar, Package, ArrowRight, Fullscreen, PieChart, Wallet, CreditCard, X, Clock, History, PlusCircle, AlertTriangle, Archive, Trash2, RotateCcw, Coins, BellRing, FilePlus, Camera, Edit2, Check, ChevronRight, ChevronLeft, RefreshCw } from 'lucide-react';
 
 const CustomerDetail: React.FC<{
   customers: Customer[],
@@ -62,21 +62,23 @@ const CustomerDetail: React.FC<{
     const now = new Date().toISOString();
     const fileArray = Array.from(files);
 
-    fileArray.forEach(file => {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const newImage: DebtImage = {
-          id: Math.random().toString(36).substr(2, 9),
-          url: reader.result as string,
-          addedAt: now
+    Promise.all(fileArray.map(file => {
+      return new Promise<DebtImage>((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          resolve({
+            id: Math.random().toString(36).substr(2, 9),
+            url: reader.result as string,
+            addedAt: now
+          });
         };
-
-        const updatedDebts = customer.debts.map(d =>
-          d.id === debtId ? { ...d, images: [...d.images, newImage] } : d
-        );
-        onUpdate(customer.id, { ...customer, debts: updatedDebts });
-      };
-      reader.readAsDataURL(file);
+        reader.readAsDataURL(file);
+      });
+    })).then(newImages => {
+      const updatedDebts = customer.debts.map(d =>
+        d.id === debtId ? { ...d, images: [...d.images, ...newImages] } : d
+      );
+      onUpdate(customer.id, { ...customer, debts: updatedDebts });
     });
   };
 
@@ -361,30 +363,38 @@ const CustomerDetail: React.FC<{
                   </div>
 
                   <div className="mt-6">
-                    <div className="flex items-center justify-between mb-3">
-                      <h4 className="text-sm font-bold text-slate-700 flex items-center gap-2"><Package size={16} /> المرفقات</h4>
-                      <div className="flex items-center gap-1">
-                        <label className="cursor-pointer bg-slate-100 text-slate-600 p-1.5 rounded-lg hover:bg-indigo-600 hover:text-white transition-all" title="إضافة من المعرض">
-                          <ImageIcon size={18} />
-                          <input
-                            type="file"
-                            multiple
-                            accept="image/*"
-                            className="hidden"
-                            onChange={(e) => handleAddImages(debt.id, e.target.files)}
-                          />
-                        </label>
-                        <label className="cursor-pointer bg-slate-100 text-slate-600 p-1.5 rounded-lg hover:bg-indigo-600 hover:text-white transition-all" title="تصوير بالكاميرا">
-                          <Camera size={18} />
-                          <input
-                            type="file"
-                            accept="image/*"
-                            capture="environment"
-                            className="hidden"
-                            onChange={(e) => handleAddImages(debt.id, e.target.files)}
-                          />
-                        </label>
+                    <div className="flex items-center justify-between mb-3 border-b border-slate-50 pb-2">
+                      <div className="space-y-0.5">
+                        <h4 className="text-sm font-bold text-slate-700 flex items-center gap-2"><Package size={16} className="text-indigo-500" /> المرفقات</h4>
+                        <p className="text-[10px] text-slate-400 font-bold">المستخدم: {debt.images.length} / 20</p>
                       </div>
+                      {debt.images.length < 20 && (
+                        <div className="flex gap-2">
+                          <label className="cursor-pointer bg-indigo-600 text-white px-3 py-1.5 rounded-xl hover:bg-indigo-700 transition-all flex items-center gap-1.5 shadow-sm active:scale-95">
+                            <Camera size={16} />
+                            <span className="text-[10px] font-black italic">تصوير</span>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              capture="environment"
+                              className="hidden"
+                              onChange={(e) => handleAddImages(debt.id, e.target.files)}
+                            />
+                          </label>
+
+                          <label className="cursor-pointer bg-slate-100 text-slate-600 px-3 py-1.5 rounded-xl hover:bg-slate-200 transition-all flex items-center gap-1.5 shadow-sm active:scale-95 border border-slate-200">
+                            <PlusCircle size={16} />
+                            <span className="text-[10px] font-black italic">المعرض</span>
+                            <input
+                              type="file"
+                              multiple
+                              accept="image/*"
+                              className="hidden"
+                              onChange={(e) => handleAddImages(debt.id, e.target.files)}
+                            />
+                          </label>
+                        </div>
+                      )}
                     </div>
                     {debt.images.length > 0 ? (
                       <div className="flex flex-wrap gap-3">
@@ -547,7 +557,7 @@ const CustomerDetail: React.FC<{
       )}
 
       {viewerImages && (
-        <div className="fixed inset-0 bg-black/95 z-[200] flex flex-col items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black/95 z-[200] flex flex-col items-center justify-center">
           <div className="absolute top-0 left-0 right-0 p-6 flex justify-between items-center z-[210] bg-gradient-to-b from-black/50 to-transparent">
             <div className="text-white font-bold text-lg">
               {viewerImages.index + 1} / {viewerImages.images.length}
@@ -558,27 +568,13 @@ const CustomerDetail: React.FC<{
           </div>
 
           {/* New Actions Bar for Image */}
-          <div className="absolute bottom-36 left-0 right-0 flex justify-center gap-2 z-[210] flex-wrap px-4">
-            <label className="flex items-center gap-2 bg-white/10 hover:bg-indigo-600 text-white px-3 py-2 rounded-xl backdrop-blur-md transition-all cursor-pointer font-bold text-xs" title="استبدال من المعرض">
-              <ImageIcon size={16} />
-              <span>المعرض</span>
+          <div className="absolute bottom-36 left-0 right-0 flex justify-center gap-4 z-[210]">
+            <label className="flex items-center gap-2 bg-white/10 hover:bg-indigo-600 text-white px-4 py-2 rounded-xl backdrop-blur-md transition-all cursor-pointer font-bold text-sm">
+              <RefreshCw size={18} />
+              <span>استبدال</span>
               <input
                 type="file"
                 accept="image/*"
-                className="hidden"
-                onChange={(e) => {
-                  const debtIdForViewer = customer.debts.find(d => d.images.some(img => img.id === viewerImages.images[viewerImages.index].id))?.id;
-                  if (debtIdForViewer) handleReplaceImage(debtIdForViewer, viewerImages.images[viewerImages.index].id, e.target.files?.[0] || null);
-                }}
-              />
-            </label>
-            <label className="flex items-center gap-2 bg-white/10 hover:bg-indigo-600 text-white px-3 py-2 rounded-xl backdrop-blur-md transition-all cursor-pointer font-bold text-xs" title="استبدال من الكاميرا">
-              <Camera size={16} />
-              <span>الكاميرا</span>
-              <input
-                type="file"
-                accept="image/*"
-                capture="environment"
                 className="hidden"
                 onChange={(e) => {
                   const debtIdForViewer = customer.debts.find(d => d.images.some(img => img.id === viewerImages.images[viewerImages.index].id))?.id;
@@ -591,9 +587,9 @@ const CustomerDetail: React.FC<{
                 const debtIdForViewer = customer.debts.find(d => d.images.some(img => img.id === viewerImages.images[viewerImages.index].id))?.id;
                 if (debtIdForViewer) handleDeleteImage(debtIdForViewer, viewerImages.images[viewerImages.index].id);
               }}
-              className="flex items-center gap-2 bg-white/10 hover:bg-red-600 text-white px-3 py-2 rounded-xl backdrop-blur-md transition-all font-bold text-xs"
+              className="flex items-center gap-2 bg-white/10 hover:bg-red-600 text-white px-4 py-2 rounded-xl backdrop-blur-md transition-all font-bold text-sm"
             >
-              <Trash2 size={16} />
+              <Trash2 size={18} />
               <span>حذف</span>
             </button>
           </div>

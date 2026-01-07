@@ -41,7 +41,7 @@ export interface Debt {
   startDate: string;
   installments: Installment[];
   history: PaymentRecord[]; // سجل كل عملية دفع أو زيادة تمت
-  images: DebtImage[]; 
+  images: DebtImage[];
 }
 
 export interface Customer {
@@ -49,6 +49,7 @@ export interface Customer {
   name: string;
   phone: string;
   createdAt: string;
+  updatedAt?: string; // لضمان مزامنة التغييرات المحلية
   debts: Debt[];
   isArchived?: boolean; // حقل جديد للأرشفة
 }
